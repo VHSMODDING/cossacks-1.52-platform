@@ -9091,6 +9091,8 @@ void FastScreenProcess()
 
 void PreDrawGameProcess();
 void PostDrawGameProcess();
+void GameKeyCheck();
+extern byte PauseMode;
 void IAmLeft();
 extern bool LockPause;
 bool ShowStatistics();
@@ -9243,10 +9245,17 @@ void PlayGame()
 	{
 		StartAboutTime = GetTickCount();
 	}
+	unsigned long lastSimulationTick = 0;
+	unsigned long frameStart = 0;
+	unsigned long simulationNow = 0;
+	unsigned int simulationInterval = 0;
+	bool runSimulation = false;
 
 StartPlay://IMPORTANT: Main game loop
+	lastSimulationTick = 0;
 	do
 	{
+		frameStart = GetRealTime();
 		if (RUNMAPEDITOR || RUNUSERMISSION)
 		{
 			GameExit = true;
@@ -9256,14 +9265,30 @@ StartPlay://IMPORTANT: Main game loop
 
 		_hb("PM1");
 		ProcessMessages();
+		if (PauseMode)
+			GameKeyCheck();
+		simulationNow = GetRealTime();
+		simulationInterval = SyncedFPSTime * 2;
+		if (simulationInterval < 16)
+			simulationInterval = 16;
+		runSimulation = !PauseMode &&
+			(!lastSimulationTick || simulationNow - lastSimulationTick >= simulationInterval);
 
 		if (bActive)
 		{
 			extern int _wallShowPostCreate;
 			HANDLE _hHeap = GetProcessHeap();
 			GameMode = 0;
-			_hb("PreDraw");
-			PreDrawGameProcess();
+			if (runSimulation)
+			{
+				lastSimulationTick = simulationNow;
+				_hb("PreDraw");
+				PreDrawGameProcess();
+			}
+			else if (!PauseMode)
+			{
+				GameKeyCheck();
+			}
 
 			if (_wallShowPostCreate > 0) {
 				FILE* wlog = _wlog_fopen();
@@ -9295,9 +9320,12 @@ StartPlay://IMPORTANT: Main game loop
 
 			time1 = GetRealTime();
 
-			_hb("PostDraw");
-			PostDrawGameProcess();
-			_hb_frame++;
+			if (runSimulation)
+			{
+				_hb("PostDraw");
+				PostDrawGameProcess();
+				_hb_frame++;
+			}
 
 			if (_wallShowPostCreate > 0) {
 				FILE* wlog = _wlog_fopen();
@@ -9368,6 +9396,8 @@ StartPlay://IMPORTANT: Main game loop
 		}
 
 	resgame:;
+		while (GetRealTime() - frameStart < 16)
+			ProcessMessages();
 
 	} while (!GameExit);
 

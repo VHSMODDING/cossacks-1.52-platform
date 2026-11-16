@@ -369,8 +369,8 @@ bool fixed;
 //Timespan in ms after last LastCTRLPressTime which allows setting unit control groups
 const int kCtrlStickyTime = 50;
 
-// The original game used twice FPSTime milliseconds between updates. Keep a
-// small floor so the far-right end cannot run unbounded on modern hardware.
+// Keep loops that still call PostDrawGameProcess every frame from spinning.
+// The actual simulation cadence is scheduled separately in PlayGame().
 const unsigned int kMinimumPostDrawInterval = 16;
 
 //Time of the last PostDrawGameProcess() return
@@ -3477,9 +3477,6 @@ void PostDrawGameProcess()
 
 	_hb("PD:RateLimit");
 	unsigned long time_since_last_call = 0;
-	unsigned int interval = SyncedFPSTime * 2;
-	if (interval < kMinimumPostDrawInterval)
-		interval = kMinimumPostDrawInterval;
 	do
 	{
 		ProcessMessages();
@@ -3488,7 +3485,7 @@ void PostDrawGameProcess()
 			GameKeyCheck();
 		}
 		time_since_last_call = GetRealTime() - prev_postdraw_time;
-	} while (PauseMode || time_since_last_call < interval);
+	} while (time_since_last_call < kMinimumPostDrawInterval);
 
 	prev_postdraw_time = GetRealTime();
 }
