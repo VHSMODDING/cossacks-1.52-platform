@@ -6479,9 +6479,12 @@ bool ProcessMenuOptions()
 #ifdef __EMSCRIPTEN__
 		{
 			// Mark the monitor's TRUE native mode; it is also the fullscreen default.
-			extern int cos_native_w, cos_native_h;
+			extern int cos_native_w, cos_native_h, cos_mac_logical_w, cos_mac_logical_h;
 			if (ModeLX[i] == cos_native_w && ModeLY[i] == cos_native_h)
-				sprintf(cc, "%dx%d NATIVE", ModeLX[i], ModeLY[i]);
+				sprintf(cc, "%dx%d %s", ModeLX[i], ModeLY[i],
+					cos_mac_logical_w ? "NATIVE RETINA" : "NATIVE");
+			else if (ModeLX[i] == cos_mac_logical_w && ModeLY[i] == cos_mac_logical_h)
+				sprintf(cc, "%dx%d RETINA 2x", ModeLX[i], ModeLY[i]);
 			else
 				sprintf(cc, "%dx%d %c", ModeLX[i], ModeLY[i], c);
 		}
@@ -6691,9 +6694,12 @@ bool ProcessGameOptions()
 #ifdef __EMSCRIPTEN__
 		{
 			// Mark the monitor's TRUE native mode; it is also the fullscreen default.
-			extern int cos_native_w, cos_native_h;
+			extern int cos_native_w, cos_native_h, cos_mac_logical_w, cos_mac_logical_h;
 			if (ModeLX[i] == cos_native_w && ModeLY[i] == cos_native_h)
-				sprintf(cc, "%dx%d NATIVE", ModeLX[i], ModeLY[i]);
+				sprintf(cc, "%dx%d %s", ModeLX[i], ModeLY[i],
+					cos_mac_logical_w ? "NATIVE RETINA" : "NATIVE");
+			else if (ModeLX[i] == cos_mac_logical_w && ModeLY[i] == cos_mac_logical_h)
+				sprintf(cc, "%dx%d RETINA 2x", ModeLX[i], ModeLY[i]);
 			else
 				sprintf(cc, "%dx%d %c", ModeLX[i], ModeLY[i], c);
 		}
