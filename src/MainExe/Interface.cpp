@@ -6321,6 +6321,36 @@ void PlayRandomTrack();
 extern byte TracksMask[16];
 char RECFILE[128] = "";
 
+// Spread the useful simulation speeds across the rail.  The saved value and
+// multiplayer command remain the original FPSTime (milliseconds per half-step).
+// Left = 200 ms/tick, quarter = 66 ms, middle = the original 40 ms,
+// three quarters = 26 ms, right = 16 ms.
+static int GameSpeedFromSlider(int position)
+{
+	if (position < 0)position = 0;
+	if (position > 100)position = 100;
+	if (position <= 25)return 100 - (position * 67 + 12) / 25;
+	if (position <= 50)return 33 - ((position - 25) * 13 + 12) / 25;
+	if (position <= 75)return 20 - ((position - 50) * 7 + 12) / 25;
+	return 13 - ((position - 75) * 5 + 12) / 25;
+}
+
+static int GameSpeedSliderPosition(int fpsTime)
+{
+	int closestPosition = 0;
+	int smallestDifference = 100;
+	for (int position = 0; position <= 100; position++)
+	{
+		int difference = abs(GameSpeedFromSlider(position) - fpsTime);
+		if (difference < smallestDifference)
+		{
+			smallestDifference = difference;
+			closestPosition = position;
+		}
+	}
+	return closestPosition;
+}
+
 // Read the press in the options loop before DialogsSystem consumes Lpressed.
 // Keep tracking realLpressed while the mouse is held so dragging works too.
 static void UpdateGameSpeedRail(VScrollBar* slider)
@@ -6460,10 +6490,11 @@ bool ProcessMenuOptions()
 	FMode->AddLine(FASTMOD);
 	FMode->CurLine = exFMode;
 
-	// Original game cadence slider: 0..100, independent of unit speed.
+	// Simulation cadence slider, independent of unit speed.
 	VScrollBar* GameSpeed = MMenu.addGP_ScrollBarL(nullptr, X0, 476 + DY + 10 - 13,
-		100, 100 - FPSTime, BTNS.GPID, 12, LX, 12, 0, 0);
+		100, GameSpeedSliderPosition(FPSTime), BTNS.GPID, 12, LX, 12, 0, 0);
 	EnableGameSpeedRail(GameSpeed);
+	const int initialGameSpeedPosition = GameSpeed->SPos;
 
 	ComboBox* MUS = MMenu.addGP_ComboBox(nullptr, 240, 240 - 16 + 80 - 3 - 13, BTNS.GPID, 0, 9, 0, &WhiteFont, &YellowFont, nullptr);
 	MUS->AddLine(GetTextByID("NOCD"));
@@ -6536,7 +6567,8 @@ bool ProcessMenuOptions()
 		MidiSound = MVL->SPos;
 		PlayMode = MUS->CurLine;
 		exFMode = FMode->CurLine;
-		FPSTime = 100 - GameSpeed->SPos;
+		if (GameSpeed->SPos != initialGameSpeedPosition)
+			FPSTime = GameSpeedFromSlider(GameSpeed->SPos);
 		RecordMode = RECSTATE;
 #ifdef __EMSCRIPTEN__
 		// Persist NOW: on Windows these globals were written to mode.dat only at process exit,
@@ -6670,9 +6702,10 @@ bool ProcessGameOptions()
 	FMode->CurLine = exFMode;
 
 	VScrollBar* GameSpeed = MMenu.addGP_ScrollBarL(nullptr, X0, 476 + DY + 11,
-		100, 100 - (NPlayers > 1 && MyDPID != ServerDPID ? SyncedFPSTime : FPSTime),
+		100, GameSpeedSliderPosition(NPlayers > 1 && MyDPID != ServerDPID ? SyncedFPSTime : FPSTime),
 		BTNS.GPID, 12, LX, 12, 0, 0);
 	EnableGameSpeedRail(GameSpeed);
+	const int initialGameSpeedPosition = GameSpeed->SPos;
 	if (1 < NPlayers && MyDPID != ServerDPID)
 	{//Only the host can change the synchronized speed in multiplayer
 		FMode->Enabled = false;
@@ -6735,7 +6768,8 @@ bool ProcessGameOptions()
 		if (1 == NPlayers || MyDPID == ServerDPID)
 		{//The host publishes the selected speed through the deterministic command buffer
 			exFMode = FMode->CurLine;
-			FPSTime = 100 - GameSpeed->SPos;
+			if (GameSpeed->SPos != initialGameSpeedPosition)
+				FPSTime = GameSpeedFromSlider(GameSpeed->SPos);
 		}
 
 		if (RealLx != ModeLX[VMode->CurLine] || RealLy != ModeLY[VMode->CurLine])
