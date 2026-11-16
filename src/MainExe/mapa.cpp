@@ -1529,6 +1529,10 @@ void ShowPulse();
 void AddPulse(word ObjID, byte c);
 void ProcessFog1();
 void CreateFogImage();
+// Rendering can run more often than simulation at lower game speeds. Keep
+// fog discovery/smoothing on simulation ticks, while rebuilding its visible
+// image every frame so camera movement remains smooth.
+extern bool advanceWorldAnimations;
 extern int DoLink_Time, SearchVictim_Time, CheckCapture_Time;
 void SyncroDoctor();
 void PrepareSound();
@@ -2122,7 +2126,7 @@ void GFieldShow()
 	{
 		time0 = GetRealTime();
 
-		if (NOPAUSE && !(LockFog || NoPFOG))
+		if (advanceWorldAnimations && NOPAUSE && !(LockFog || NoPFOG))
 		{
 			ProcessFog1();
 		}
