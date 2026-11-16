@@ -83,6 +83,7 @@ static void ResolveUserMissionLaunchPaths(const char* inPath, char* mapOut, int 
 extern int exFMode;
 extern int FPSTime;
 extern int SyncedFPSTime;
+extern bool advanceWorldAnimations;
 //Was used to distinguish between GameSpy and GSC-Game.Net
 //Probably obsolete, but could also be some sort of "game active" indicator
 bool use_gsc_network_protocol = false;
@@ -9286,6 +9287,7 @@ void PlayGame()
 		SetGameDisplayModeAnyway(exRealLx, exRealLy);
 	}
 
+	advanceWorldAnimations = false;
 	DrawAllScreen();
 	GameNeedToDraw = false;
 	GameExit = false;
@@ -9348,6 +9350,7 @@ StartPlay://IMPORTANT: Main game loop
 			_hb("PM2");
 			ProcessMessages();
 
+			advanceWorldAnimations = runSimulation;
 			if (GameNeedToDraw)
 			{
 				_hb("DrawAll");
@@ -9359,6 +9362,7 @@ StartPlay://IMPORTANT: Main game loop
 				_hb("FastScr");
 				FastScreenProcess();
 			}
+			advanceWorldAnimations = false;
 
 			if (_wallShowPostCreate > 0) {
 				FILE* wlog = _wlog_fopen();
@@ -9546,6 +9550,7 @@ StartPlay://IMPORTANT: Main game loop
 		}
 		g_cos_menu_fixed_req = 0;
 	}
+	advanceWorldAnimations = true;
 }
 
 void DrawAllEditScreen()
