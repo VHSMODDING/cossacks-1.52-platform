@@ -6377,6 +6377,20 @@ static void EnableGameSpeedRail(VScrollBar* slider)
 	slider->y1 = slider->y + slider->LineLy - 1;
 }
 
+// Keep the original slow/fast unit modes selectable with one click on the
+// closed field in both options dialogs.
+static void UpdateUnitSpeedChoice(ComboBox* selector)
+{
+	if (selector->Enabled && selector->Visible && Lpressed && !selector->IsActive &&
+		mouseX >= selector->x && mouseX <= selector->x1 &&
+		mouseY >= selector->y && mouseY <= selector->y1)
+	{
+		selector->CurLine = selector->CurLine ? 0 : 1;
+		selector->NeedToDraw = true;
+		Lpressed = false;
+	}
+}
+
 extern int screen_width;
 extern int screen_height;
 extern double screen_ratio;
@@ -6533,6 +6547,7 @@ bool ProcessMenuOptions()
 
 		ProcessMessages();
 		StdKeys();
+		UpdateUnitSpeedChoice(FMode);
 		UpdateGameSpeedRail(GameSpeed);
 		MMenu.MarkToDraw();
 		MMenu.ProcessDialogs();
@@ -6740,6 +6755,7 @@ bool ProcessGameOptions()
 		P4->Visible = P4->MouseOver;
 		ProcessMessages();
 		StdKeys();
+		UpdateUnitSpeedChoice(FMode);
 		UpdateGameSpeedRail(GameSpeed);
 		MMenu.MarkToDraw();
 		MMenu.ProcessDialogs();
