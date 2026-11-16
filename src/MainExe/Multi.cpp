@@ -39,6 +39,8 @@ extern PlayerInfo PINFO[8];
 extern const int kSystemMessageDisplayTime;
 
 extern int exFMode;
+extern int FPSTime;
+extern int SyncedFPSTime;
 extern DPID MyDPID;
 extern DPID ServerDPID;
 extern word NPlayers;
@@ -2268,9 +2270,17 @@ void SetGSpeed( byte speed )
 {
 	// This function runs only when command 69 is read from the deterministic
 	// execution buffer. Apply the host's command identically on every peer.
-	FrmDec = speed + 1;
-	SpeedSh = speed;
-	exFMode = speed;
+	if (speed <= 1)
+	{
+		FrmDec = speed + 1;
+		SpeedSh = speed;
+		exFMode = speed;
+	}
+	else if (speed <= 102)
+	{
+		FPSTime = speed - 2;
+		SyncedFPSTime = FPSTime;
+	}
 }
 
 void AttackToXY( byte NI, byte x, byte y )

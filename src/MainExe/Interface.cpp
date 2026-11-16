@@ -81,6 +81,8 @@ extern word dwVersion;
 static void ResolveUserMissionLaunchPaths(const char* inPath, char* mapOut, int mapOutSize, char* dllOut, int dllOutSize, char* briefOut, int briefOutSize);
 
 extern int exFMode;
+extern int FPSTime;
+extern int SyncedFPSTime;
 //Was used to distinguish between GameSpy and GSC-Game.Net
 //Probably obsolete, but could also be some sort of "game active" indicator
 bool use_gsc_network_protocol = false;
@@ -6387,9 +6389,11 @@ bool ProcessMenuOptions()
 	GPPicture* P1 = MMenu.addGPPicture(nullptr, 240, 317 + 10 - 13, BTNS.GPID, 13);
 	GPPicture* P2 = MMenu.addGPPicture(nullptr, 240, 343 + 10 - 13, BTNS.GPID, 14);
 	GPPicture* P3 = MMenu.addGPPicture(nullptr, 240, 447 + 10 - 13, BTNS.GPID, 15);
+	GPPicture* P4 = MMenu.addGPPicture(nullptr, 240, 473 + 10 - 13, BTNS.GPID, 16);
 	P1->Visible = 0;
 	P2->Visible = 0;
 	P3->Visible = 0;
+	P4->Visible = 0;
 
 	//sound volume (#1)
 	VScrollBar* SVL = MMenu.addGP_ScrollBarL(nullptr, X0, 346 + DY + 10 - 13, 100, WarSound, BTNS.GPID, 12, LX, 12, 0, 0);
@@ -6456,12 +6460,10 @@ bool ProcessMenuOptions()
 	FMode->AddLine(FASTMOD);
 	FMode->CurLine = exFMode;
 
-	// Both controls select the engine's shared slow/fast simulation mode.
-	VScrollBar* GameSpeed = MMenu.addGP_ScrollBarL(nullptr, X0, 450 + DY + 10 - 13 + 27,
-		100, exFMode ? 100 : 0, BTNS.GPID, 12, LX, 12, 0, 0);
+	// Original game cadence slider: 0..100, independent of unit speed.
+	VScrollBar* GameSpeed = MMenu.addGP_ScrollBarL(nullptr, X0, 476 + DY + 10 - 13,
+		100, 100 - FPSTime, BTNS.GPID, 12, LX, 12, 0, 0);
 	EnableGameSpeedRail(GameSpeed);
-	int previousUnitSpeed = FMode->CurLine;
-	int previousGameSpeed = GameSpeed->SPos;
 
 	ComboBox* MUS = MMenu.addGP_ComboBox(nullptr, 240, 240 - 16 + 80 - 3 - 13, BTNS.GPID, 0, 9, 0, &WhiteFont, &YellowFont, nullptr);
 	MUS->AddLine(GetTextByID("NOCD"));
@@ -6496,6 +6498,7 @@ bool ProcessMenuOptions()
 		P1->Visible = P1->MouseOver;
 		P2->Visible = P2->MouseOver;
 		P3->Visible = P3->MouseOver;
+		P4->Visible = P4->MouseOver;
 
 		ProcessMessages();
 		StdKeys();
@@ -6503,12 +6506,6 @@ bool ProcessMenuOptions()
 		MMenu.MarkToDraw();
 		MMenu.ProcessDialogs();
 		MMenu.RefreshView();
-		if (FMode->CurLine != previousUnitSpeed)
-			GameSpeed->SPos = FMode->CurLine ? 100 : 0;
-		else if (GameSpeed->SPos != previousGameSpeed)
-			FMode->CurLine = GameSpeed->SPos >= 50;
-		previousUnitSpeed = FMode->CurLine;
-		previousGameSpeed = GameSpeed->SPos;
 		if (ItemChoose == 77)
 		{
 			RECSTATE = !RECSTATE;
@@ -6538,7 +6535,8 @@ bool ProcessMenuOptions()
 		WarSound = SVL->SPos;
 		MidiSound = MVL->SPos;
 		PlayMode = MUS->CurLine;
-		exFMode = GameSpeed->SPos >= 50;
+		exFMode = FMode->CurLine;
+		FPSTime = 100 - GameSpeed->SPos;
 		RecordMode = RECSTATE;
 #ifdef __EMSCRIPTEN__
 		// Persist NOW: on Windows these globals were written to mode.dat only at process exit,
@@ -6604,9 +6602,11 @@ bool ProcessGameOptions()
 	GPPicture* P1 = MMenu.addGPPicture(nullptr, 240, 317 + 11, BTNS.GPID, 15);
 	GPPicture* P2 = MMenu.addGPPicture(nullptr, 240, 343 + 11, BTNS.GPID, 16);
 	GPPicture* P3 = MMenu.addGPPicture(nullptr, 240, 447 + 11, BTNS.GPID, 17);
+	GPPicture* P4 = MMenu.addGPPicture(nullptr, 240, 473 + 11, BTNS.GPID, 18);
 	P1->Visible = 0;
 	P2->Visible = 0;
 	P3->Visible = 0;
+	P4->Visible = 0;
 
 	//sound volume (#1)
 	MidiSound = GetCDVolume();
@@ -6669,11 +6669,10 @@ bool ProcessGameOptions()
 	FMode->AddLine(FASTMOD);
 	FMode->CurLine = exFMode;
 
-	VScrollBar* GameSpeed = MMenu.addGP_ScrollBarL(nullptr, X0, 450 + DY + 11 + 27,
-		100, exFMode ? 100 : 0, BTNS.GPID, 12, LX, 12, 0, 0);
+	VScrollBar* GameSpeed = MMenu.addGP_ScrollBarL(nullptr, X0, 476 + DY + 11,
+		100, 100 - (NPlayers > 1 && MyDPID != ServerDPID ? SyncedFPSTime : FPSTime),
+		BTNS.GPID, 12, LX, 12, 0, 0);
 	EnableGameSpeedRail(GameSpeed);
-	int previousUnitSpeed = FMode->CurLine;
-	int previousGameSpeed = GameSpeed->SPos;
 	if (1 < NPlayers && MyDPID != ServerDPID)
 	{//Only the host can change the synchronized speed in multiplayer
 		FMode->Enabled = false;
@@ -6705,18 +6704,13 @@ bool ProcessGameOptions()
 		P1->Visible = P1->MouseOver;
 		P2->Visible = P2->MouseOver;
 		P3->Visible = P3->MouseOver;
+		P4->Visible = P4->MouseOver;
 		ProcessMessages();
 		StdKeys();
 		UpdateGameSpeedRail(GameSpeed);
 		MMenu.MarkToDraw();
 		MMenu.ProcessDialogs();
 		MMenu.RefreshView();
-		if (FMode->CurLine != previousUnitSpeed)
-			GameSpeed->SPos = FMode->CurLine ? 100 : 0;
-		else if (GameSpeed->SPos != previousGameSpeed)
-			FMode->CurLine = GameSpeed->SPos >= 50;
-		previousUnitSpeed = FMode->CurLine;
-		previousGameSpeed = GameSpeed->SPos;
 		SetCDVolume(MVL->SPos);
 		if (PrevPlayMode != (MUS->CurLine != 0))
 		{
@@ -6740,7 +6734,8 @@ bool ProcessGameOptions()
 		//Just in case
 		if (1 == NPlayers || MyDPID == ServerDPID)
 		{//The host publishes the selected speed through the deterministic command buffer
-			exFMode = GameSpeed->SPos >= 50;
+			exFMode = FMode->CurLine;
+			FPSTime = 100 - GameSpeed->SPos;
 		}
 
 		if (RealLx != ModeLX[VMode->CurLine] || RealLy != ModeLY[VMode->CurLine])

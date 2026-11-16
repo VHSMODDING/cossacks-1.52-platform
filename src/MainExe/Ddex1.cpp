@@ -369,10 +369,9 @@ bool fixed;
 //Timespan in ms after last LastCTRLPressTime which allows setting unit control groups
 const int kCtrlStickyTime = 50;
 
-// Simulation cadence for the two game-speed modes. The old fixed 16 ms
-// interval ran even the "slow" mode at about 60 updates per second.
-const unsigned int kSlowPostDrawInterval = 40;
-const unsigned int kFastPostDrawInterval = 25;
+// The original game used twice FPSTime milliseconds between updates. Keep a
+// small floor so the far-right end cannot run unbounded on modern hardware.
+const unsigned int kMinimumPostDrawInterval = 16;
 
 //Time of the last PostDrawGameProcess() return
 unsigned long prev_postdraw_time = 0;
@@ -434,7 +433,9 @@ void _wd_activate(bool on) {
 }
 
 //Game version. Must match with other clients
-__declspec( dllexport ) word dwVersion = 152;
+// Command 69 now carries a separate cadence value above 1. Advertise a new
+// network revision so older 1.52 clients do not interpret it as unit speed.
+__declspec( dllexport ) word dwVersion = 152 | (1 << 8);
 __declspec( dllexport ) char LobbyVersion[32] = "1.52";
 __declspec( dllexport ) char BuildVersion[32] = "V 1.52";
 
@@ -469,6 +470,10 @@ int Shifter;
 
 //Game speed mode dependent SpeedShift variable. Used for controlling animations etc
 int SpeedSh = 0;
+// Game cadence is independent of the slow/fast unit animation mode. The
+// original slider uses 0..100 (larger values mean a slower game).
+int FPSTime = 20;
+int SyncedFPSTime = 20;
 
 int StoneID;
 int TreeID;
@@ -2840,6 +2845,11 @@ void PreDrawGameProcess()
 	{
 		CmdSetSpeed( exFMode );
 	}
+	if (FPSTime != SyncedFPSTime && (NPlayers < 2 || MyDPID == ServerDPID))
+	{
+		// Values 2..102 of command 69 carry the independent game cadence.
+		CmdSetSpeed( 2 + FPSTime );
+	}
 
 	//Calculate population values for all players
 	if (( tmtmt % 256 ) == 32)
@@ -3467,6 +3477,9 @@ void PostDrawGameProcess()
 
 	_hb("PD:RateLimit");
 	unsigned long time_since_last_call = 0;
+	unsigned int interval = SyncedFPSTime * 2;
+	if (interval < kMinimumPostDrawInterval)
+		interval = kMinimumPostDrawInterval;
 	do
 	{
 		ProcessMessages();
@@ -3475,8 +3488,7 @@ void PostDrawGameProcess()
 			GameKeyCheck();
 		}
 		time_since_last_call = GetRealTime() - prev_postdraw_time;
-	} while (PauseMode || time_since_last_call <
-		(SpeedSh ? kFastPostDrawInterval : kSlowPostDrawInterval));
+	} while (PauseMode || time_since_last_call < interval);
 
 	prev_postdraw_time = GetRealTime();
 }
@@ -3747,13 +3759,13 @@ void SaveModeDatNow( void )
 	GFILE *fff = Gopen( "mode2.dat", "wt" )   /* mode2: ignore legacy 10-field MODE.DAT (factory data + old saves) that mis-parsed as muted volumes */;
 	if (fff)
 	{
-		//7th value was FPSTime
+		// Keep the legacy 12 fields unchanged; append the independent game speed.
 		// field order matches the fixed reader: War, Work, Order, Midi (WorkSound used to be
 		// dropped here — an OrderSound duplicate was written in its slot)
-		Gprintf( fff, "%d %d %d %d %d %d %d %d %d %d %d %d",
+		Gprintf( fff, "%d %d %d %d %d %d %d %d %d %d %d %d %d",
 			ex_window_x, ex_window_y, ex_x, ex_y,
 			WarSound, WorkSound, OrderSound,
-			MidiSound, 0, ScrollSpeed, exFMode, PlayMode );
+			MidiSound, 0, ScrollSpeed, exFMode, PlayMode, FPSTime );
 		Gclose( fff );
 	}
 	GFILE *rec_settings_file = Gopen( "rec.dat", "wt" );
@@ -3959,21 +3971,27 @@ int PASCAL WinMain(
 	//Load settings
 	GFILE* fff = Gopen( "mode2.dat", "rt" );
 	ScrollSpeed = 5;
+	FPSTime = 20;
+	SyncedFPSTime = 20;
 	if (fff)
 	{
 		//Distinguish between last window adn fullscreen resolutions
 		int ex_window_x, ex_window_y, ex_x, ex_y;
 		int dummy;
-		//7th value was FPSTime
+		int savedGameSpeed = FPSTime;
+		// The first 12 values are the existing mode2.dat layout. The 13th is
+		// present only in files written after restoring the original slider.
 		// NOTE: field order fixed — the old reader scanned &WarSound,&OrderSound,&OrderSound,...
 		// (a typo mirrored in the writer), so WorkSound was NEVER loaded and stayed 0 forever
 		// (work/chop/build sounds permanently mute). Old files still parse fine: their 3rd field
 		// was a duplicate of the 2nd, which now lands in WorkSound — same audible value.
-		Gscanf( fff, "%d%d%d%d%d%d%d%d%d%d%d%d",
+		int fields = Gscanf( fff, "%d%d%d%d%d%d%d%d%d%d%d%d%d",
 			&ex_window_x, &ex_window_y, &ex_x, &ex_y,
 			&WarSound, &WorkSound, &OrderSound, &MidiSound,
-			&dummy, &ScrollSpeed, &exFMode, &PlayMode );
+			&dummy, &ScrollSpeed, &exFMode, &PlayMode, &savedGameSpeed );
 		Gclose( fff );
+		if (fields == 13 && savedGameSpeed >= 0 && savedGameSpeed <= 100)
+			FPSTime = savedGameSpeed;
 		// Migration: an all-zero sound block is the artifact of the old zero-defaults bug being
 		// persisted (not a deliberate user choice — the UI has a separate way to disable sound).
 		// Restore audible defaults once.
